@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Catch-all default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper to validate ID paths
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Helper to validate Citizen payload
+    function isValidCitizen(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.name is string && data.name.size() <= 200
+          && data.email is string && data.email.size() <= 200
+          && data.phoneNumber is string && data.phoneNumber.size() <= 20
+          && data.pin is string && data.pin.size() == 4
+          && data.state is string && data.state.size() <= 100
+          && data.district is string && data.district.size() <= 100
+          && data.community is string && data.community.size() <= 200
+          && data.points is int
+          && data.role == 'citizen';
+    }
+
+    // Helper to validate Technician payload
+    function isValidTechnician(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.name is string && data.name.size() <= 200
+          && data.email is string && data.email.size() <= 200
+          && data.phoneNumber is string && data.phoneNumber.size() <= 20
+          && data.pin is string && data.pin.size() == 4
+          && data.state is string && data.state.size() <= 100
+          && data.district is string && data.district.size() <= 100
+          && data.community is string && data.community.size() <= 200
+          && data.specialty is string
+          && (data.rating is float || data.rating is int)
+          && data.completedTasksCount is int
+          && data.role == 'technician';
+    }
+
+    // Helper to validate Admin payload
+    function isValidAdmin(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.name is string && data.name.size() <= 200
+          && data.email is string && data.email.size() <= 200
+          && data.pin is string && data.pin.size() == 4
+          && data.state is string
+          && data.district is string
+          && data.community is string
+          && data.adminLevel in ['community', 'district', 'state', 'country']
+          && data.role == 'admin';
+    }
+
+    // Helper to validate Issue payload
+    function isValidIssue(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.citizenId is string && data.citizenId.size() <= 128
+          && data.citizenName is string && data.citizenName.size() <= 200
+          && data.category is string
+          && data.description is string && data.description.size() <= 2000
+          && data.imageBefore is string && data.imageBefore.size() <= 10000000
+          && (data.latitude is float || data.latitude is int)
+          && (data.longitude is float || data.longitude is int)
+          && data.locationName is string && data.locationName.size() <= 500
+          && data.status in ['pending', 'assigned', 'in-progress', 'completed', 'closed']
+          && data.priority in ['low', 'medium', 'high']
+          && data.estimatedDuration is string && data.estimatedDuration.size() <= 100
+          && data.createdAt is string && data.createdAt.size() <= 100;
+    }
+
+    // Collection Rules
+    match /citizens/{citizenId} {
+      allow read: if true;
+      allow create, update: if isValidId(citizenId) && isValidCitizen(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /technicians/{techId} {
+      allow read: if true;
+      allow create, update: if isValidId(techId) && isValidTechnician(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /admins/{adminId} {
+      allow read: if true;
+      allow create, update: if isValidId(adminId) && isValidAdmin(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /issues/{issueId} {
+      allow read: if true;
+      allow create, update: if isValidId(issueId) && isValidIssue(request.resource.data);
+      allow delete: if false;
+    }
+  }
+}

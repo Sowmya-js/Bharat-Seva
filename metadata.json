@@ -1,0 +1,6 @@
+{
+  "name": "Bharat Seva Portal",
+  "description": "A unified public infrastructure reporting and governance platform for India, enabling citizens, technicians, and local-to-national admins to report, track, and resolve civic issues using AI-powered insights.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

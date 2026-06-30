@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  /* Indian Tricolor-themed Palette */
+  --color-saffron-50: #fffbf5;
+  --color-saffron-100: #ffecd6;
+  --color-saffron-200: #ffd8ad;
+  --color-saffron-500: #FF9933;
+  --color-saffron-600: #e27d11;
+  --color-saffron-700: #bd6204;
+  
+  --color-ashoka-50: #f0f0ff;
+  --color-ashoka-100: #e0e0ff;
+  --color-ashoka-500: #000080;
+  --color-ashoka-600: #000066;
+  --color-ashoka-700: #00004d;
+  
+  --color-india-green-50: #f2faf1;
+  --color-india-green-100: #e1f5df;
+  --color-india-green-500: #138808;
+  --color-india-green-600: #0f6c06;
+  --color-india-green-700: #0a4d04;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #fafafa;
+  color: #171717;
+}
+
+/* Custom glowing effects for gamified components */
+.glow-saffron {
+  box-shadow: 0 0 15px rgba(255, 153, 51, 0.25);
+}
+
+.glow-green {
+  box-shadow: 0 0 15px rgba(19, 136, 8, 0.25);
+}
+
+.glow-ashoka {
+  box-shadow: 0 0 15px rgba(0, 0, 128, 0.2);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

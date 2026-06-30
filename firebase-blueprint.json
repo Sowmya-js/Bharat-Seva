@@ -1,0 +1,108 @@
+{
+  "entities": {
+    "Citizen": {
+      "title": "Citizen",
+      "description": "Registered Indian citizen reporting civic grievances and earning points.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique citizen identifier prefixed with 'cit_'" },
+        "name": { "type": "string", "description": "Full name of the citizen" },
+        "community": { "type": "string", "description": "The administrative community / ward" },
+        "district": { "type": "string", "description": "The administrative district" },
+        "state": { "type": "string", "description": "The administrative state" },
+        "phoneNumber": { "type": "string", "description": "Contact mobile number" },
+        "email": { "type": "string", "description": "Primary email address" },
+        "pin": { "type": "string", "description": "4-digit security PIN used for logging in" },
+        "points": { "type": "integer", "description": "Gamification civic reward points balance" },
+        "role": { "type": "string", "enum": ["citizen"] }
+      },
+      "required": ["id", "name", "community", "district", "state", "phoneNumber", "email", "pin", "points", "role"]
+    },
+    "Technician": {
+      "title": "Technician",
+      "description": "Technician in charge of civic grievance resolutions in a ward.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique technician identifier prefixed with 'tech_'" },
+        "name": { "type": "string", "description": "Full name of the technician" },
+        "community": { "type": "string", "description": "Assigned community / ward" },
+        "district": { "type": "string", "description": "Assigned district" },
+        "state": { "type": "string", "description": "Assigned state" },
+        "phoneNumber": { "type": "string", "description": "Contact number" },
+        "email": { "type": "string", "description": "Work email address" },
+        "pin": { "type": "string", "description": "4-digit login PIN" },
+        "specialty": { "type": "string", "description": "Technical specialty department" },
+        "rating": { "type": "number", "description": "Average rating score from citizens" },
+        "completedTasksCount": { "type": "integer", "description": "Number of completed issues resolved" },
+        "role": { "type": "string", "enum": ["technician"] }
+      },
+      "required": ["id", "name", "community", "district", "state", "phoneNumber", "email", "pin", "specialty", "rating", "completedTasksCount", "role"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Government administrative officer at Ward, District, State, or National level.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique administrator identifier prefixed with 'admin_'" },
+        "name": { "type": "string", "description": "Name of the government official" },
+        "role": { "type": "string", "enum": ["admin"] },
+        "adminLevel": { "type": "string", "enum": ["community", "district", "state", "country"] },
+        "community": { "type": "string", "description": "Assigned ward circle" },
+        "district": { "type": "string", "description": "Assigned district boundary" },
+        "state": { "type": "string", "description": "Assigned state boundary" },
+        "email": { "type": "string", "description": "Official gov.in email address" },
+        "pin": { "type": "string", "description": "4-digit administrator PIN" }
+      },
+      "required": ["id", "name", "role", "adminLevel", "community", "district", "state", "email", "pin"]
+    },
+    "IssueReport": {
+      "title": "IssueReport",
+      "description": "Civic grievance reported by a citizen, to be resolved by a technician.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique issue identifier" },
+        "citizenId": { "type": "string", "description": "ID of reporting citizen" },
+        "citizenName": { "type": "string", "description": "Name of reporting citizen" },
+        "category": { "type": "string", "description": "Grievance category" },
+        "description": { "type": "string", "description": "Detailed description of the issue" },
+        "imageBefore": { "type": "string", "description": "Base64 or URL representation of issue photo" },
+        "videoBefore": { "type": "string", "description": "Optional video attachment" },
+        "imageAfter": { "type": "string", "description": "Optional photo of the resolution" },
+        "latitude": { "type": "number", "description": "GPS latitude" },
+        "longitude": { "type": "number", "description": "GPS longitude" },
+        "locationName": { "type": "string", "description": "Reverse geocoded location name" },
+        "status": { "type": "string", "enum": ["pending", "assigned", "in-progress", "completed", "closed"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "estimatedDuration": { "type": "string", "description": "Estimated timeframe to resolve" },
+        "assignedTechnicianId": { "type": "string", "description": "Assigned technician ID" },
+        "assignedTechnicianName": { "type": "string", "description": "Assigned technician Name" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "resolvedAt": { "type": "string", "description": "Resolution timestamp" },
+        "pointsAwarded": { "type": "integer", "description": "Points awarded for verification" },
+        "aiConfidence": { "type": "number", "description": "Gemini classification confidence score" },
+        "aiAnalysis": { "type": "string", "description": "Gemini technical extraction context" },
+        "aiValidation": { "type": "string", "description": "Gemini resolve verification output" },
+        "supporters": { "type": "array", "description": "IDs of citizens who co-signed/supported this issue" }
+      },
+      "required": ["id", "citizenId", "citizenName", "category", "description", "imageBefore", "latitude", "longitude", "locationName", "status", "priority", "estimatedDuration", "createdAt"]
+    }
+  },
+  "firestore": {
+    "citizens/{citizenId}": {
+      "schema": "Citizen",
+      "description": "Collection of all registered Indian citizens."
+    },
+    "technicians/{techId}": {
+      "schema": "Technician",
+      "description": "Collection of all registered ward technicians."
+    },
+    "admins/{adminId}": {
+      "schema": "AdminUser",
+      "description": "Collection of authorized government admin accounts."
+    },
+    "issues/{issueId}": {
+      "schema": "IssueReport",
+      "description": "Collection of reported civic grievances."
+    }
+  }
+}
