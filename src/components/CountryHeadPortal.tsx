@@ -110,9 +110,10 @@ Based on a total of ${allIssues.length} active civic issues reported across the 
   // Function to generate state-specific analysis for Country Head
   const generateStateAnalysisForCountry = async (stateName: string) => {
     setIsGeneratingStateReport(prev => ({ ...prev, [stateName]: true }));
-    const stateIssues = allIssues.filter(i => 
-      i.state === stateName || i.locationName.split(',').pop()?.trim() === stateName
-    );
+    const stateIssues = allIssues.filter(i => {
+      const normalizedIssueState = i.state || '';
+      return normalizedIssueState === stateName || (i.locationName && (i.locationName.includes(stateName) || (stateName === 'Karnataka' && i.locationName.includes('Bengaluru'))));
+    });
     const issuesPayload = stateIssues.map(i => ({
       category: i.category,
       description: i.description,
@@ -171,7 +172,41 @@ Direct analysis of live civic complaints indicates a high concentration of unres
   const stateStats = useMemo(() => {
     const stats: Record<string, { name: string, total: number, resolved: number, pending: number, ongoing: number }> = {};
     allIssues.forEach(issue => {
-      const state = issue.state || issue.locationName.split(',').pop()?.trim() || 'Unknown State';
+      let state = (issue.state || '').trim();
+      if (!state || state.toLowerCase() === 'bengaluru' || state.toLowerCase() === 'bengaluru urban' || state.toLowerCase() === 'mumbai') {
+        const lastPart = (issue.locationName || '').split(',').pop()?.trim() || '';
+        if (lastPart.toLowerCase() === 'bengaluru' || lastPart.toLowerCase() === 'bangalore') {
+          state = 'Karnataka';
+        } else if (lastPart.toLowerCase() === 'mumbai') {
+          state = 'Maharashtra';
+        } else {
+          state = lastPart || 'Unknown State';
+        }
+      }
+      
+      const lowerState = state.toLowerCase();
+      if (lowerState.includes('karnataka') || lowerState === 'bengaluru') {
+        state = 'Karnataka';
+      } else if (lowerState.includes('maharashtra') || lowerState === 'mumbai') {
+        state = 'Maharashtra';
+      } else if (lowerState.includes('telangana') || lowerState.includes('hyderabad')) {
+        state = 'Telangana';
+      } else if (lowerState.includes('delhi')) {
+        state = 'Delhi';
+      } else if (lowerState.includes('tamil nadu')) {
+        state = 'Tamil Nadu';
+      } else if (lowerState.includes('west bengal')) {
+        state = 'West Bengal';
+      } else {
+        state = state.split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+      }
+
+      if (!state || state === 'Unknown State') {
+        state = 'Karnataka';
+      }
+
       if (!stats[state]) {
         stats[state] = { name: state, total: 0, resolved: 0, pending: 0, ongoing: 0 };
       }

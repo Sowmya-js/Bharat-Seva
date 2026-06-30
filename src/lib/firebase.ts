@@ -26,9 +26,79 @@ const firebaseConfig = {
 let app;
 let db: any = null;
 let isRealFirebase = false;
+let isFirestoreReachable = typeof navigator !== 'undefined' ? navigator.onLine : true;
+let isSeedingCompletedOrInProgress = false;
+
+export function canUseFirestore(): boolean {
+  if (!isRealFirebase || !db) return false;
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    isFirestoreReachable = false;
+    return false;
+  }
+  return isFirestoreReachable;
+}
+
+export function normalizeIssue(issue: IssueReport): IssueReport {
+  let s = (issue.state || '').trim();
+  const loc = (issue.locationName || '').toLowerCase();
+  const dist = (issue.district || '').toLowerCase();
+
+  // If state is empty or invalid, try to infer from locationName or district
+  if (!s || s.toLowerCase() === 'bengaluru' || s.toLowerCase() === 'bengaluru urban' || s.toLowerCase() === 'mumbai') {
+    if (loc.includes('bengaluru') || loc.includes('bangalore') || loc.includes('karnataka') || dist.includes('bengaluru')) {
+      s = 'Karnataka';
+    } else if (loc.includes('mumbai') || loc.includes('maharashtra') || dist.includes('mumbai')) {
+      s = 'Maharashtra';
+    } else if (loc.includes('delhi')) {
+      s = 'Delhi';
+    } else if (loc.includes('telangana') || loc.includes('hyderabad')) {
+      s = 'Telangana';
+    } else if (loc.includes('kolkata') || loc.includes('west bengal')) {
+      s = 'West Bengal';
+    } else if (loc.includes('chennai') || loc.includes('tamil nadu')) {
+      s = 'Tamil Nadu';
+    }
+  }
+
+  // General mappings
+  const lowerState = s.toLowerCase();
+  if (lowerState.includes('karnataka') || lowerState === 'bengaluru' || lowerState === 'bangalore') {
+    s = 'Karnataka';
+  } else if (lowerState.includes('maharashtra') || lowerState === 'mumbai') {
+    s = 'Maharashtra';
+  } else if (lowerState.includes('delhi')) {
+    s = 'Delhi';
+  } else if (lowerState.includes('telangana') || lowerState.includes('hyderabad')) {
+    s = 'Telangana';
+  } else if (lowerState.includes('tamil nadu') || lowerState === 'chennai') {
+    s = 'Tamil Nadu';
+  } else if (lowerState.includes('west bengal') || lowerState === 'kolkata') {
+    s = 'West Bengal';
+  } else if (lowerState.includes('andhra')) {
+    s = 'Andhra Pradesh';
+  } else if (lowerState.includes('uttar pradesh')) {
+    s = 'Uttar Pradesh';
+  } else if (lowerState.includes('gujarat')) {
+    s = 'Gujarat';
+  } else {
+    // Title case any other state names
+    s = s.split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  if (!s || s === 'Unknown State') {
+    s = 'Karnataka'; // default fallback for safety
+  }
+
+  return {
+    ...issue,
+    state: s
+  };
+}
 
 // Helper to prevent Firestore operations from blocking if the network/backend is slow or unreachable
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 2000): Promise<T> {
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 1500): Promise<T> {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) => 
@@ -48,6 +118,7 @@ try {
 } catch (e) {
   console.warn("Firebase initialization failed, falling back to LocalStorage replica:", e);
   isRealFirebase = false;
+  isFirestoreReachable = false;
 }
 
 // Memory-based or LocalStorage-based fallback database
@@ -368,8 +439,19 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  if (
+    errorMessage.includes('timed out') || 
+    errorMessage.includes('unavailable') || 
+    errorMessage.includes('Could not reach') ||
+    errorMessage.includes('offline')
+  ) {
+    isFirestoreReachable = false;
+    console.warn("Firestore detected as offline or unreachable. Engaging instant LocalStorage replica mode.");
+  }
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMessage,
     authInfo: {
       userId: null,
       email: null,
@@ -387,11 +469,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 // Seed the actual Firebase database if it is empty
 export async function seedFirebaseDatabase() {
-  if (!isRealFirebase || !db) return;
+  if (!canUseFirestore()) return;
+  if (isSeedingCompletedOrInProgress) return;
+  isSeedingCompletedOrInProgress = true;
+
   try {
     // Check and seed citizens
     try {
-      const citizensSnap = await withTimeout(getDocs(collection(db, 'citizens')), 4000);
+      const citizensSnap = await withTimeout(getDocs(collection(db, 'citizens')), 3000);
       if (citizensSnap.empty) {
         console.log("Seeding citizens collection...");
         for (const citizen of INITIAL_CITIZENS) {
@@ -407,7 +492,7 @@ export async function seedFirebaseDatabase() {
 
     // Check and seed technicians
     try {
-      const techsSnap = await withTimeout(getDocs(collection(db, 'technicians')), 4000);
+      const techsSnap = await withTimeout(getDocs(collection(db, 'technicians')), 3000);
       if (techsSnap.empty) {
         console.log("Seeding technicians collection...");
         for (const tech of INITIAL_TECHNICIANS) {
@@ -423,7 +508,7 @@ export async function seedFirebaseDatabase() {
 
     // Check and seed admins
     try {
-      const adminsSnap = await withTimeout(getDocs(collection(db, 'admins')), 4000);
+      const adminsSnap = await withTimeout(getDocs(collection(db, 'admins')), 3000);
       if (adminsSnap.empty) {
         console.log("Seeding admins collection...");
         for (const admin of INITIAL_ADMINS) {
@@ -439,7 +524,7 @@ export async function seedFirebaseDatabase() {
 
     // Check and seed issues
     try {
-      const issuesSnap = await withTimeout(getDocs(collection(db, 'issues')), 4000);
+      const issuesSnap = await withTimeout(getDocs(collection(db, 'issues')), 3000);
       if (issuesSnap.empty) {
         console.log("Seeding issues collection...");
         for (const issue of INITIAL_ISSUES) {
@@ -460,13 +545,18 @@ export async function seedFirebaseDatabase() {
   }
 }
 
-// Execute seeding automatically when imported
-seedFirebaseDatabase();
+// Execute seeding after a brief delay to avoid blocking startup renders
+setTimeout(() => {
+  seedFirebaseDatabase().catch(() => {});
+}, 1000);
 
 // Direct Firestore operations (without local storage or hardcoded overrides)
 export async function getCitizensList(): Promise<Citizen[]> {
+  if (!canUseFirestore()) {
+    return Object.values(loadLocalDB().citizens);
+  }
   try {
-    const q = await withTimeout(getDocs(collection(db, 'citizens')), 4000);
+    const q = await withTimeout(getDocs(collection(db, 'citizens')), 1500);
     const firestoreList: Citizen[] = [];
     q.forEach(doc => {
       firestoreList.push(doc.data() as Citizen);
@@ -495,9 +585,11 @@ export async function saveCitizenUser(citizen: Citizen): Promise<void> {
   currentDB.citizens[citizen.email.toLowerCase()] = citizen;
   saveLocalDB(currentDB);
 
+  if (!canUseFirestore()) return;
+
   try {
     const cleanCitizen = Object.fromEntries(Object.entries(citizen).filter(([_, v]) => v !== undefined));
-    await withTimeout(setDoc(doc(db, 'citizens', citizen.id), cleanCitizen), 4000);
+    await withTimeout(setDoc(doc(db, 'citizens', citizen.id), cleanCitizen), 1500);
   } catch (error) {
     try {
       handleFirestoreError(error, OperationType.WRITE, `citizens/${citizen.id}`);
@@ -507,8 +599,11 @@ export async function saveCitizenUser(citizen: Citizen): Promise<void> {
 }
 
 export async function getTechniciansList(): Promise<Technician[]> {
+  if (!canUseFirestore()) {
+    return Object.values(loadLocalDB().technicians);
+  }
   try {
-    const q = await withTimeout(getDocs(collection(db, 'technicians')), 4000);
+    const q = await withTimeout(getDocs(collection(db, 'technicians')), 1500);
     const firestoreList: Technician[] = [];
     q.forEach(doc => {
       firestoreList.push(doc.data() as Technician);
@@ -533,9 +628,11 @@ export async function saveTechnicianUser(technician: Technician): Promise<void> 
   currentDB.technicians[technician.email.toLowerCase()] = technician;
   saveLocalDB(currentDB);
 
+  if (!canUseFirestore()) return;
+
   try {
     const cleanTech = Object.fromEntries(Object.entries(technician).filter(([_, v]) => v !== undefined));
-    await withTimeout(setDoc(doc(db, 'technicians', technician.id), cleanTech), 4000);
+    await withTimeout(setDoc(doc(db, 'technicians', technician.id), cleanTech), 1500);
   } catch (error) {
     try {
       handleFirestoreError(error, OperationType.WRITE, `technicians/${technician.id}`);
@@ -545,8 +642,11 @@ export async function saveTechnicianUser(technician: Technician): Promise<void> 
 }
 
 export async function getAdminsList(): Promise<AdminUser[]> {
+  if (!canUseFirestore()) {
+    return Object.values(loadLocalDB().admins);
+  }
   try {
-    const q = await withTimeout(getDocs(collection(db, 'admins')), 4000);
+    const q = await withTimeout(getDocs(collection(db, 'admins')), 1500);
     const firestoreList: AdminUser[] = [];
     q.forEach(doc => {
       firestoreList.push(doc.data() as AdminUser);
@@ -571,9 +671,11 @@ export async function saveAdminUser(admin: AdminUser): Promise<void> {
   currentDB.admins[admin.email.toLowerCase()] = admin;
   saveLocalDB(currentDB);
 
+  if (!canUseFirestore()) return;
+
   try {
     const cleanAdmin = Object.fromEntries(Object.entries(admin).filter(([_, v]) => v !== undefined));
-    await withTimeout(setDoc(doc(db, 'admins', admin.id), cleanAdmin), 4000);
+    await withTimeout(setDoc(doc(db, 'admins', admin.id), cleanAdmin), 1500);
   } catch (error) {
     try {
       handleFirestoreError(error, OperationType.WRITE, `admins/${admin.id}`);
@@ -583,11 +685,14 @@ export async function saveAdminUser(admin: AdminUser): Promise<void> {
 }
 
 export async function getIssuesList(): Promise<IssueReport[]> {
+  if (!canUseFirestore()) {
+    return Object.values(loadLocalDB().issues).map(normalizeIssue).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
   try {
-    const q = await withTimeout(getDocs(collection(db, 'issues')), 4000);
+    const q = await withTimeout(getDocs(collection(db, 'issues')), 1500);
     const firestoreList: IssueReport[] = [];
     q.forEach(doc => {
-      firestoreList.push(doc.data() as IssueReport);
+      firestoreList.push(normalizeIssue(doc.data() as IssueReport));
     });
     const currentDB = loadLocalDB();
     firestoreList.forEach(i => {
@@ -600,21 +705,24 @@ export async function getIssuesList(): Promise<IssueReport[]> {
       handleFirestoreError(error, OperationType.LIST, 'issues');
     } catch (logErr) {}
     console.warn("Falling back to local issues data due to Firestore delay or permission restriction.");
-    return Object.values(loadLocalDB().issues).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return Object.values(loadLocalDB().issues).map(normalizeIssue).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 }
 
 export async function saveIssueReport(issue: IssueReport): Promise<void> {
+  const normalized = normalizeIssue(issue);
   const currentDB = loadLocalDB();
-  currentDB.issues[issue.id] = issue;
+  currentDB.issues[normalized.id] = normalized;
   saveLocalDB(currentDB);
 
+  if (!canUseFirestore()) return;
+
   try {
-    const cleanIssue = Object.fromEntries(Object.entries(issue).filter(([_, v]) => v !== undefined));
-    await withTimeout(setDoc(doc(db, 'issues', issue.id), cleanIssue), 4000);
+    const cleanIssue = Object.fromEntries(Object.entries(normalized).filter(([_, v]) => v !== undefined));
+    await withTimeout(setDoc(doc(db, 'issues', normalized.id), cleanIssue), 1500);
   } catch (error) {
     try {
-      handleFirestoreError(error, OperationType.WRITE, `issues/${issue.id}`);
+      handleFirestoreError(error, OperationType.WRITE, `issues/${normalized.id}`);
     } catch (logErr) {}
     console.warn("Saved issue report locally; Firestore write skipped or timed out.");
   }
@@ -627,10 +735,12 @@ export async function updateIssueInDatabase(issueId: string, updates: Partial<Is
     saveLocalDB(currentDB);
   }
 
+  if (!canUseFirestore()) return;
+
   try {
     const cleanUpdates = Object.fromEntries(Object.entries(updates).filter(([_, v]) => v !== undefined));
     const dRef = doc(db, 'issues', issueId);
-    await withTimeout(updateDoc(dRef, cleanUpdates as any), 4000);
+    await withTimeout(updateDoc(dRef, cleanUpdates as any), 1500);
   } catch (error) {
     try {
       handleFirestoreError(error, OperationType.UPDATE, `issues/${issueId}`);
@@ -640,6 +750,17 @@ export async function updateIssueInDatabase(issueId: string, updates: Partial<Is
 }
 
 export function subscribeToIssues(callback: (issues: IssueReport[]) => void): () => void {
+  if (!canUseFirestore()) {
+    // Return interval to push local changes to components dynamically
+    const intervalId = setInterval(() => {
+      callback(Object.values(loadLocalDB().issues).map(normalizeIssue).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    }, 2500);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }
+
   try {
     const colRef = collection(db, 'issues');
     let isCancelled = false;
@@ -649,7 +770,7 @@ export function subscribeToIssues(callback: (issues: IssueReport[]) => void): ()
       if (isCancelled) return;
       const list: IssueReport[] = [];
       snapshot.forEach((doc) => {
-        list.push(doc.data() as IssueReport);
+        list.push(normalizeIssue(doc.data() as IssueReport));
       });
       // Sort issues by createdAt descending (newest at the starting/top)
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -669,13 +790,13 @@ export function subscribeToIssues(callback: (issues: IssueReport[]) => void): ()
       } catch (logErr) {}
       console.warn("Firestore subscription error, active polling local fallback...");
       // Trigger instant callback with local db issues
-      callback(Object.values(loadLocalDB().issues).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      callback(Object.values(loadLocalDB().issues).map(normalizeIssue).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     });
 
     // Start a backup polling interval to keep UI reactive if Firestore stops sending updates/is slow
     const intervalId = setInterval(() => {
       if (isCancelled) return;
-      const localIssues = Object.values(loadLocalDB().issues).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const localIssues = Object.values(loadLocalDB().issues).map(normalizeIssue).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       callback(localIssues);
     }, 2500);
 
@@ -694,7 +815,7 @@ export function subscribeToIssues(callback: (issues: IssueReport[]) => void): ()
     
     // Return interval to push local changes to components dynamically
     const intervalId = setInterval(() => {
-      callback(Object.values(loadLocalDB().issues).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      callback(Object.values(loadLocalDB().issues).map(normalizeIssue).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     }, 2500);
 
     return () => {
